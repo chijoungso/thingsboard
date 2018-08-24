@@ -22,8 +22,12 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.mqtt.*;
 import io.netty.util.CharsetUtil;
 import io.netty.util.concurrent.Promise;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 final class MqttChannelHandler extends SimpleChannelInboundHandler<MqttMessage> {
+
+    private static final Logger log = LoggerFactory.getLogger(MqttChannelHandler.class);
 
     private final MqttClientImpl client;
     private final Promise<MqttConnectResult> connectFuture;
@@ -35,31 +39,35 @@ final class MqttChannelHandler extends SimpleChannelInboundHandler<MqttMessage> 
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, MqttMessage msg) throws Exception {
-        switch (msg.fixedHeader().messageType()) {
-            case CONNACK:
-                handleConack(ctx.channel(), (MqttConnAckMessage) msg);
-                break;
-            case SUBACK:
-                handleSubAck((MqttSubAckMessage) msg);
-                break;
-            case PUBLISH:
-                handlePublish(ctx.channel(), (MqttPublishMessage) msg);
-                break;
-            case UNSUBACK:
-                handleUnsuback((MqttUnsubAckMessage) msg);
-                break;
-            case PUBACK:
-                handlePuback((MqttPubAckMessage) msg);
-                break;
-            case PUBREC:
-                handlePubrec(ctx.channel(), msg);
-                break;
-            case PUBREL:
-                handlePubrel(ctx.channel(), msg);
-                break;
-            case PUBCOMP:
-                handlePubcomp(msg);
-                break;
+        if (msg.fixedHeader() != null) {
+            switch (msg.fixedHeader().messageType()) {
+                case CONNACK:
+                    handleConack(ctx.channel(), (MqttConnAckMessage) msg);
+                    break;
+                case SUBACK:
+                    handleSubAck((MqttSubAckMessage) msg);
+                    break;
+                case PUBLISH:
+                    handlePublish(ctx.channel(), (MqttPublishMessage) msg);
+                    break;
+                case UNSUBACK:
+                    handleUnsuback((MqttUnsubAckMessage) msg);
+                    break;
+                case PUBACK:
+                    handlePuback((MqttPubAckMessage) msg);
+                    break;
+                case PUBREC:
+                    handlePubrec(ctx.channel(), msg);
+                    break;
+                case PUBREL:
+                    handlePubrel(ctx.channel(), msg);
+                    break;
+                case PUBCOMP:
+                    handlePubcomp(msg);
+                    break;
+            }
+        } else {
+            log.info("Unable to handle message: '{}'. MqttDecoderResult: '{}'.", msg.toString(), msg.decoderResult().toString());
         }
     }
 
@@ -95,6 +103,11 @@ final class MqttChannelHandler extends SimpleChannelInboundHandler<MqttMessage> 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         super.channelInactive(ctx);
+    }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        log.warn("An exception was thrown in the netty-mqtt channel pipeline.", cause);
     }
 
     private void invokeHandlersForIncomingPublish(MqttPublishMessage message) {

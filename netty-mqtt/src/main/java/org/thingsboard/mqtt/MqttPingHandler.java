@@ -46,11 +46,11 @@ final class MqttPingHandler extends ChannelInboundHandlerAdapter {
             return;
         }
         MqttMessage message = (MqttMessage) msg;
-        if(message.fixedHeader().messageType() == MqttMessageType.PINGREQ){
+        if (message.fixedHeader() != null && message.fixedHeader().messageType() == MqttMessageType.PINGREQ) {
             this.handlePingReq(ctx.channel());
-        } else if(message.fixedHeader().messageType() == MqttMessageType.PINGRESP){
+        } else if (message.fixedHeader() != null && message.fixedHeader().messageType() == MqttMessageType.PINGRESP) {
             this.handlePingResp();
-        }else{
+        } else {
             ctx.fireChannelRead(ReferenceCountUtil.retain(msg));
         }
     }
