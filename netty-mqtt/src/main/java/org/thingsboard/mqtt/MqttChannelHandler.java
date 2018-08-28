@@ -22,8 +22,12 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.mqtt.*;
 import io.netty.util.CharsetUtil;
 import io.netty.util.concurrent.Promise;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 final class MqttChannelHandler extends SimpleChannelInboundHandler<MqttMessage> {
+
+    private static final Logger log = LoggerFactory.getLogger(MqttChannelHandler.class);
 
     private final MqttClientImpl client;
     private final Promise<MqttConnectResult> connectFuture;
@@ -158,8 +162,13 @@ final class MqttChannelHandler extends SimpleChannelInboundHandler<MqttMessage> 
     }
 
     private void handleSubAck(MqttSubAckMessage message) {
+        if (message.variableHeader() == null) {
+            log.info("Unable to handle SUBACK: '{}'.", message.decoderResult().toString());
+            return;
+        }
         MqttPendingSubscription pendingSubscription = this.client.getPendingSubscriptions().remove(message.variableHeader().messageId());
         if (pendingSubscription == null) {
+            log.trace("No MqttPendingSubscription found for message id: '{}'. Ignoring message.", message.variableHeader().messageId());
             return;
         }
         pendingSubscription.onSubackReceived();
@@ -210,8 +219,13 @@ final class MqttChannelHandler extends SimpleChannelInboundHandler<MqttMessage> 
     }
 
     private void handleUnsuback(MqttUnsubAckMessage message) {
+        if (message.variableHeader() == null) {
+            log.info("Unable to handle UNSUBACK: '{}'.", message.decoderResult().toString());
+            return;
+        }
         MqttPendingUnsubscription unsubscription = this.client.getPendingServerUnsubscribes().get(message.variableHeader().messageId());
         if (unsubscription == null) {
+            log.trace("No MqttPendingUnsubscription found for message id: '{}'. Ignoring message.", message.variableHeader().messageId());
             return;
         }
         unsubscription.onUnsubackReceived();
@@ -221,7 +235,15 @@ final class MqttChannelHandler extends SimpleChannelInboundHandler<MqttMessage> 
     }
 
     private void handlePuback(MqttPubAckMessage message) {
+        if (message.variableHeader() == null) {
+            log.info("Unable to handle PUBACK: '{}'.", message.decoderResult().toString());
+            return;
+        }
         MqttPendingPublish pendingPublish = this.client.getPendingPublishes().get(message.variableHeader().messageId());
+        if (pendingPublish == null) {
+            log.trace("No MqttPendingPublish found for message id: '{}'. Ignoring message.", message.variableHeader().messageId());
+            return;
+        }
         pendingPublish.getFuture().setSuccess(null);
         pendingPublish.onPubackReceived();
         this.client.getPendingPublishes().remove(message.variableHeader().messageId());

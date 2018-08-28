@@ -19,16 +19,21 @@ import io.netty.channel.EventLoop;
 import io.netty.handler.codec.mqtt.MqttFixedHeader;
 import io.netty.handler.codec.mqtt.MqttMessage;
 import io.netty.util.concurrent.ScheduledFuture;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
 final class RetransmissionHandler<T extends MqttMessage> {
 
+    private static final Logger log = LoggerFactory.getLogger(RetransmissionHandler.class);
+
     private ScheduledFuture<?> timer;
     private int timeout = 10;
     private BiConsumer<MqttFixedHeader, T> handler;
     private T originalMessage;
+    private int messageId;
 
     void start(EventLoop eventLoop){
         if(eventLoop == null){
@@ -46,6 +51,9 @@ final class RetransmissionHandler<T extends MqttMessage> {
             this.timeout += 5;
             MqttFixedHeader fixedHeader = new MqttFixedHeader(this.originalMessage.fixedHeader().messageType(), true, this.originalMessage.fixedHeader().qosLevel(), this.originalMessage.fixedHeader().isRetain(), this.originalMessage.fixedHeader().remainingLength());
             handler.accept(fixedHeader, originalMessage);
+            if (log.isTraceEnabled() && timeout > 3600) {
+                log.debug("Rescheduling message with id: '{}' with timeout: '{}'. '{}'.", messageId, timeout, fixedHeader.toString());
+            }
             startTimer(eventLoop);
         }, timeout, TimeUnit.SECONDS);
     }
@@ -62,5 +70,9 @@ final class RetransmissionHandler<T extends MqttMessage> {
 
     void setOriginalMessage(T originalMessage) {
         this.originalMessage = originalMessage;
+    }
+
+    void setMessageId(int messageId) {
+        this.messageId = messageId;
     }
 }
